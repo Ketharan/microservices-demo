@@ -96,7 +96,18 @@ func main() {
 	}
 	if configured {
 		component := env("MCP_COMPONENT_NAME", "insights-api")
-		srv.mcp = newMCPClient(endpoint, component)
+		// No MCP_CLIENT_ID means no credential and no Authorization header.
+		// The secret is read from the environment and never logged.
+		var tok *clientCredsToken
+		if id := env("MCP_CLIENT_ID", ""); id != "" {
+			tok = newClientCredsToken(
+				env("MCP_TOKEN_URL", "http://thunder-service.thunder.svc.cluster.local:8090/oauth2/token"),
+				id, env("MCP_CLIENT_SECRET", ""))
+			log.Printf("MCP credential: client_id %s", id)
+		} else {
+			log.Printf("MCP credential: none configured; the observer will answer 401")
+		}
+		srv.mcp = newMCPClient(endpoint, component, tok)
 		log.Printf("MCP endpoint: %s (x-openchoreo-component: %s)", endpoint, component)
 	} else {
 		log.Printf("MCP_GATEWAY_URL is not set: questions will report the gateway as unconfigured")

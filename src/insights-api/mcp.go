@@ -46,16 +46,23 @@ type mcpClient struct {
 	// being unidentified. Cost: several hours, 2026-10-29.
 	component string
 
+	// token is nil when no credential is configured, in which case no
+	// Authorization header is sent and behaviour is exactly as before. That
+	// default is deliberate: an unconfigured deployment fails at the observer
+	// with a clear 401 rather than at startup with a config error.
+	token *clientCredsToken
+
 	mu        sync.Mutex
 	nextID    int64
 	sessionID string
 	ready     bool
 }
 
-func newMCPClient(endpoint, component string) *mcpClient {
+func newMCPClient(endpoint, component string, token *clientCredsToken) *mcpClient {
 	return &mcpClient{
 		endpoint:  endpoint,
 		component: component,
+		token:     token,
 		http:      &http.Client{Timeout: mcpTimeout},
 	}
 }
@@ -116,6 +123,13 @@ func (c *mcpClient) call(ctx context.Context, method string, params any, notific
 	httpReq.Header.Set("MCP-Protocol-Version", protocolVersion)
 	if c.component != "" {
 		httpReq.Header.Set("x-openchoreo-component", c.component)
+	}
+	if c.token != nil {
+		tok, err := c.token.get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("mcp auth: %w", err)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+tok)
 	}
 	c.mu.Lock()
 	if c.sessionID != "" {
