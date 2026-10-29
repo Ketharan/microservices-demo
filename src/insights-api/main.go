@@ -95,8 +95,9 @@ func main() {
 		configured:    configured,
 	}
 	if configured {
-		srv.mcp = newMCPClient(endpoint)
-		log.Printf("MCP endpoint: %s", endpoint)
+		component := env("MCP_COMPONENT_NAME", "insights-api")
+		srv.mcp = newMCPClient(endpoint, component)
+		log.Printf("MCP endpoint: %s (x-openchoreo-component: %s)", endpoint, component)
 	} else {
 		log.Printf("MCP_GATEWAY_URL is not set: questions will report the gateway as unconfigured")
 	}

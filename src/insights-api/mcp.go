@@ -37,16 +37,26 @@ type mcpClient struct {
 	endpoint string
 	http     *http.Client
 
+	// component is sent as x-openchoreo-component on every request. The
+	// ai-mcp-federation trait's HTTPRoute matches on exactly that header --
+	// its path match is PathPrefix "/", so the header is the ONLY selector.
+	// That is how several components share one gateway port. Omit it and the
+	// gateway has no route for the request and answers 404 "route not found",
+	// which reads as the gateway being unconfigured rather than the client
+	// being unidentified. Cost: several hours, 2026-10-29.
+	component string
+
 	mu        sync.Mutex
 	nextID    int64
 	sessionID string
 	ready     bool
 }
 
-func newMCPClient(endpoint string) *mcpClient {
+func newMCPClient(endpoint, component string) *mcpClient {
 	return &mcpClient{
-		endpoint: endpoint,
-		http:     &http.Client{Timeout: mcpTimeout},
+		endpoint:  endpoint,
+		component: component,
+		http:      &http.Client{Timeout: mcpTimeout},
 	}
 }
 
@@ -104,6 +114,9 @@ func (c *mcpClient) call(ctx context.Context, method string, params any, notific
 	// Both are advertised because the server picks; see the transport note above.
 	httpReq.Header.Set("Accept", "application/json, text/event-stream")
 	httpReq.Header.Set("MCP-Protocol-Version", protocolVersion)
+	if c.component != "" {
+		httpReq.Header.Set("x-openchoreo-component", c.component)
+	}
 	c.mu.Lock()
 	if c.sessionID != "" {
 		httpReq.Header.Set("Mcp-Session-Id", c.sessionID)
